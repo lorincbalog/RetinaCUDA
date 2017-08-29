@@ -7,7 +7,7 @@ import ctypes
 if sys.platform.startswith('linux'):
     lib = ctypes.cdll.LoadLibrary('/home/lorczi/cuda-workspace/RetinaCUDA/Release/libRetinaCUDA.so')
 elif sys.platform.startswith('win'):
-    lib = ctypes.cdll.LoadLibrary('./RetinaCUDA.dll')    
+    lib = ctypes.cdll.LoadLibrary('..\\bin\\Windows\\RetinaCUDA.dll')
 
 def resolveError(err):
     if err == -1:
@@ -24,6 +24,8 @@ class Retina(object):
     def __init__(self):
         lib.Retina_new.argtypes = []
         lib.Retina_new.restype = ctypes.c_void_p
+        lib.Retina_delete.argtypes = [ctypes.c_void_p]
+        lib.Retina_delete.restype = ctypes.c_void_p
 
         lib.Retina_setSamplingFields.argtypes = [ctypes.c_void_p, \
         ctypes.POINTER(ctypes.c_float), ctypes.POINTER(ctypes.c_double), ctypes.c_size_t]
@@ -83,6 +85,9 @@ class Retina(object):
 
 
         self.obj = lib.Retina_new()
+
+    def __del__(self):
+        lib.Retina_delete(self.obj)
 
     @property
     def retina_size(self):
@@ -290,3 +295,23 @@ def convert_from_Piotr(rgb_image_vector):
         (np.resize(rgb_image_vector[:,0], (1, retina_size)),\
         np.resize(rgb_image_vector[:,1], (1, retina_size)),\
         np.resize(rgb_image_vector[:,2], (1, retina_size))))
+
+def create_retina(loc, coeff, img_size, center, gauss_norm=None):
+    # Instantiate retina
+    ret = retina_cuda.Retina()
+    # Set retina's parameters
+    # It is good practice to initialise the retina once
+    # and use for multiple sampling and inversion without changin the parameters
+    ret.set_samplingfields(loc, coeff) # setting a different samplingfield does not affect the other parameters
+    # Changing the parameters below will lead to an invalid gauss norm image (must be reassigned again / generate)
+    ret.image_height = img_size[0]
+
+    ret.image_width = img_size[1]
+    ret.rgb = (len(img_size) == 3)
+    ret.center_x = center[0]
+    ret.center_y = center[1]
+    # Once image parameters are known,CUDA can generate the gauss norm image (leave the parameter empty or None)
+    # or assign a pregenerated one (will check the size)
+    ret.set_gauss_norm(gauss_norm)
+    # Retina is ready to use
+    return ret
