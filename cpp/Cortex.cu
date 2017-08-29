@@ -1,5 +1,6 @@
 #include "Cortex.cuh"
 #include <iostream>
+#include "sm_60_atomic_functions.h"
 #include "CUDAHelper.cuh"
 
 #ifndef M_PI
@@ -201,6 +202,8 @@ Cortex::~Cortex() {
 	setPointerToNull(&d_leftLoc);
 	setPointerToNull(&d_rightLoc);
 	setPointerToNull(&d_gauss);
+	setPointerToNull(&d_leftNorm);
+	setPointerToNull(&d_rightNorm);
 }
 
 int Cortex::cortImage(double *h_imageVector, size_t vecLen, double **d_norm, uchar *h_result,

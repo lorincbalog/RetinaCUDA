@@ -56,6 +56,8 @@ extern "C" {
  */
 	EXPORT
 	Retina* Retina_new() { return new Retina(); }
+	EXPORT
+	void Retina_delete(Retina *ret) { delete ret; }
 
 	EXPORT
 	int Retina_setSamplingFields(Retina *ret, float *h_loc, double *h_coeff, size_t numOfLocs) {
@@ -131,6 +133,9 @@ extern "C" {
  */
 	EXPORT
 	Cortex* Cortex_new() { return new Cortex(); }
+	EXPORT
+	void Cortex_delete(Cortex *cort) { delete cort; }
+
 
 	EXPORT
 	int Cortex_initFromRetinaFields(Cortex *cort, float *h_loc = NULL, size_t numOfLocs = 0) {

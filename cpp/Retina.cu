@@ -1,6 +1,7 @@
 #include "SamplingPoint.cuh"
 #include "Retina.cuh"
 #include <iostream>
+#include "sm_60_atomic_functions.h"
 #include "CUDAHelper.cuh"
 
 __constant__ int IMAGE_H;
