@@ -2,6 +2,10 @@
 #include <iostream>
 #include "CUDAHelper.cuh"
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
+
 __constant__ float ALPHA;
 __constant__ float SHRINK;
 __constant__ uint2 CORT_IMG_SIZE;
