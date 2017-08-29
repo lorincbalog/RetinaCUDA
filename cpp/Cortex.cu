@@ -61,16 +61,46 @@ __global__ void cort_map_right_kernel(SamplingPoint *d_rightFields, double2 *d_r
 	d_rightLoc[index].x = atan2(point->_y, point->_x + ALPHA);
 }
 
-__global__ void cort_image_kernel(double *d_img, double *d_norm_img, double *d_img_vector,
-		SamplingPoint *d_fields, double2 *d_loc, double *d_gauss, size_t size, size_t vecLen, bool rgb) {
-
+__global__ void cort_norm_kernel(double *d_norm_img, double2 *d_loc,
+		double *d_gauss, size_t locSize, bool rgb) {
 	int globalIndex = blockIdx.x * blockDim.x + threadIdx.x;
-	if (size <= globalIndex)
+	if (locSize <= globalIndex)
 		return;
 
-	int channel = globalIndex / (size / (rgb ? 3 : 1));
+	int channel = globalIndex / (locSize / (rgb ? 3 : 1));
 	int offset = channel * CORT_IMG_SIZE.x * CORT_IMG_SIZE.y;
-	int index = globalIndex % (size / (rgb ? 3 : 1));
+	int index = globalIndex % (locSize / (rgb ? 3 : 1));
+
+	double x = d_loc[index].x;
+	double y = d_loc[index].y;
+
+	int dx = (int)(10 * ((round(x * 10) / 10 - round(x))));
+	dx < 0 ? dx = 10 + dx : dx;
+	int dy = (int)(10 * ((round(y * 10) / 10 - round(y))));
+	dy < 0 ? dy = 10 + dy : dy;
+
+	double *kernel = &d_gauss[(dx * 10 + dy) * GAUSS_KERNEL_WIDTH * GAUSS_KERNEL_WIDTH];
+
+	int X = (int)round(x) - GAUSS_KERNEL_WIDTH / 2;
+	int Y = (int)round(y) - GAUSS_KERNEL_WIDTH / 2;
+
+	for (int i = 0; i != GAUSS_KERNEL_WIDTH; ++i) {
+		for (int j = 0; j != GAUSS_KERNEL_WIDTH; ++j) {
+			if (X + j >= 0 && Y + i >= 0 && X + j < CORT_IMG_SIZE.x && Y + i < CORT_IMG_SIZE.y)
+				atomicAdd(&d_norm_img[offset + (Y + i) * CORT_IMG_SIZE.x + X + j], kernel[i * GAUSS_KERNEL_WIDTH + j]);
+		}
+	}
+}
+
+__global__ void cort_image_kernel(double *d_img, double *d_img_vector, SamplingPoint *d_fields,
+		double2 *d_loc, double *d_gauss, size_t locSize, size_t vecLen, bool rgb) {
+	int globalIndex = blockIdx.x * blockDim.x + threadIdx.x;
+	if (locSize <= globalIndex)
+		return;
+
+	int channel = globalIndex / (locSize / (rgb ? 3 : 1));
+	int offset = channel * CORT_IMG_SIZE.x * CORT_IMG_SIZE.y;
+	int index = globalIndex % (locSize / (rgb ? 3 : 1));
 	int vecOffset = channel * vecLen;
 
 	double x = d_loc[index].x;
@@ -89,10 +119,8 @@ __global__ void cort_image_kernel(double *d_img, double *d_norm_img, double *d_i
 	double value = d_img_vector[vecOffset + d_fields[index]._i];
 	for (int i = 0; i != GAUSS_KERNEL_WIDTH; ++i) {
 		for (int j = 0; j != GAUSS_KERNEL_WIDTH; ++j) {
-			if (X + j >= 0 && Y + i >= 0 && X + j < CORT_IMG_SIZE.x && Y + i < CORT_IMG_SIZE.y) {
-				atomicAdd(&d_norm_img[offset + (Y + i) * CORT_IMG_SIZE.x + X + j], kernel[i * GAUSS_KERNEL_WIDTH + j]);
+			if (X + j >= 0 && Y + i >= 0 && X + j < CORT_IMG_SIZE.x && Y + i < CORT_IMG_SIZE.y)
 				atomicAdd(&d_img[offset + (Y + i) * CORT_IMG_SIZE.x + X + j], value * kernel[i * GAUSS_KERNEL_WIDTH + j]);
-			}
 		}
 	}
 }
@@ -157,7 +185,7 @@ __global__ void normalise(uchar *d_norm, double *d_image, double *normaliser, si
 }
 
 template <class T>
-__host__ void setPointerToNull(T **d_ptr) {
+void setPointerToNull(T **d_ptr) {
 	if (*d_ptr != nullptr){
 		cudaFree(*d_ptr);
 		cudaCheckErrors("ERROR");
@@ -171,9 +199,9 @@ Cortex::~Cortex() {
 	setPointerToNull(&d_gauss);
 }
 
-__host__ int Cortex::cortImage(double *h_imageVector, size_t vecLen, uchar *h_result,
+int Cortex::cortImage(double *h_imageVector, size_t vecLen, double **d_norm, uchar *h_result,
 			size_t cortImgX, size_t cortImgY, bool rgb, double *d_imageVector,
-			SamplingPoint *d_fields, double2 *d_loc, size_t size) const {
+			SamplingPoint *d_fields, double2 *d_loc, size_t locSize) {
 	if (!isReady())
 		return ERRORS::uninitialized;
 	if ((h_imageVector == nullptr && d_imageVector == nullptr) || h_result == nullptr)
@@ -184,9 +212,6 @@ __host__ int Cortex::cortImage(double *h_imageVector, size_t vecLen, uchar *h_re
 	double *d_img;
 	cudaMalloc((void**)&d_img, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
 	cudaMemset(d_img, 0.0, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	double *d_av_img;
-	cudaMalloc((void**)&d_av_img, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	cudaMemset(d_av_img, 0.0, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
 	double *_d_imageVector;
 	if (d_imageVector != nullptr)
 		_d_imageVector = d_imageVector;
@@ -195,99 +220,49 @@ __host__ int Cortex::cortImage(double *h_imageVector, size_t vecLen, uchar *h_re
 		cudaMemcpy(_d_imageVector, h_imageVector, _channels * (_leftCortexSize + _rightCortexSize) * sizeof(double), cudaMemcpyHostToDevice);
 	}
 
-	cort_image_kernel<<<ceil(_channels * size / 512.0), 512>>>(d_img, d_av_img, _d_imageVector,
-			d_fields, d_loc, d_gauss, _channels * size, _leftCortexSize + _rightCortexSize, _rgb);
+	cort_image_kernel<<<ceil(_channels * locSize / 512.0), 512>>>(d_img, _d_imageVector,
+			d_fields, d_loc, d_gauss, _channels * locSize, _leftCortexSize + _rightCortexSize, _rgb);
 	//cudaDeviceSynchronize();
 	cudaCheckErrors("ERROR");
 
-	uchar *d_norm;
-	cudaMalloc((void**)&d_norm, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(uchar));
-	normalise<<<ceil(_channels * _cortImgSize.x * _cortImgSize.y / 512.0), 512>>>(d_norm, d_img, d_av_img, _channels * _cortImgSize.x * _cortImgSize.y);
-	//cudaDeviceSynchronize();
+	if (*d_norm == nullptr) {
+		cudaMalloc((void**)d_norm, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
+		cudaMemset(*d_norm, 0.0, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
+		cort_norm_kernel<<<ceil(_channels * locSize / 512.0), 512>>>(*d_norm, d_loc, d_gauss, _channels * locSize, _rgb);
+		//cudaDeviceSynchronize();
+		cudaCheckErrors("ERROR");
+	}
+
+	uchar *d_normalised;
+	cudaMalloc((void**)&d_normalised, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(uchar));
+	normalise<<<ceil(_channels * _cortImgSize.x * _cortImgSize.y / 512.0), 512>>>(
+			d_normalised, d_img, *d_norm, _channels * _cortImgSize.x * _cortImgSize.y);
+	cudaDeviceSynchronize();
 	cudaCheckErrors("ERROR");
 
-	cudaMemcpy(h_result, d_norm, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(uchar), cudaMemcpyDeviceToHost);
+	cudaMemcpy(h_result, d_normalised, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(uchar), cudaMemcpyDeviceToHost);
 	cudaCheckErrors("ERROR");
 
-	cudaFree(d_norm);
+	cudaFree(d_normalised);
 	if (d_imageVector == nullptr)
 		cudaFree(_d_imageVector);
-	cudaFree(d_av_img);
 	cudaFree(d_img);
 	return 0;
 }
 
-__host__ int Cortex::cortImageLeft(double *h_imageVector, size_t vecLen, uchar *h_result,
-							size_t cortImgX, size_t cortImgY, bool rgb, double *d_imageVector) const {
-	return cortImage(h_imageVector, vecLen, h_result, cortImgX, cortImgY, rgb,
+int Cortex::cortImageLeft(double *h_imageVector, size_t vecLen, uchar *h_result,
+							size_t cortImgX, size_t cortImgY, bool rgb, double *d_imageVector) {
+	return cortImage(h_imageVector, vecLen, &d_leftNorm, h_result, cortImgX, cortImgY, rgb,
 					 d_imageVector, d_leftFields, d_leftLoc, _leftCortexSize);
-	/*double *d_img;
-	cudaMalloc((void**)&d_img, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	cudaMemset(d_img, 0.0, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	double *d_av_img;
-	cudaMalloc((void**)&d_av_img, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	cudaMemset(d_av_img, 0.0, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	double *_d_imageVector;
-	cudaMalloc((void**)&_d_imageVector, _channels * (_leftCortexSize + _rightCortexSize) * sizeof(double));
-	cudaMemcpy(_d_imageVector, h_imageVector, _channels * (_leftCortexSize + _rightCortexSize) * sizeof(double), cudaMemcpyHostToDevice);
-
-	cort_image_kernel<<<ceil(_channels * _leftCortexSize / 512.0), 512>>>(d_img, d_av_img, _d_imageVector,
-			d_leftFields, d_leftLoc, d_gauss, _channels * _leftCortexSize, _leftCortexSize + _rightCortexSize, _rgb);
-	//cudaDeviceSynchronize();
-	cudaCheckErrors("ERROR");
-
-	uchar *d_norm;
-	cudaMalloc((void**)&d_norm, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(uchar));
-	normalise<<<ceil(_channels * _cortImgSize.x * _cortImgSize.y / 512.0), 512>>>(d_norm, d_img, d_av_img, _channels * _cortImgSize.x * _cortImgSize.y);
-	//cudaDeviceSynchronize();
-	cudaCheckErrors("ERROR");
-
-	cudaMemcpy(h_result, d_norm, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(uchar), cudaMemcpyDeviceToHost);
-	cudaCheckErrors("ERROR");
-
-	cudaFree(d_norm);
-	cudaFree(_d_imageVector);
-	cudaFree(d_av_img);
-	cudaFree(d_img);
-	return 0;*/
 }
 
-__host__ int Cortex::cortImageRight(double *h_imageVector, size_t vecLen, uchar *h_result,
-							size_t cortImgX, size_t cortImgY, bool rgb, double *d_imageVector) const {
-	return cortImage(h_imageVector, vecLen, h_result, cortImgX, cortImgY, rgb,
+int Cortex::cortImageRight(double *h_imageVector, size_t vecLen, uchar *h_result,
+							size_t cortImgX, size_t cortImgY, bool rgb, double *d_imageVector) {
+	return cortImage(h_imageVector, vecLen, &d_rightNorm, h_result, cortImgX, cortImgY, rgb,
 					 d_imageVector, d_rightFields, d_rightLoc, _rightCortexSize);
-	/*double *d_img;
-	cudaMalloc((void**)&d_img, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	cudaMemset(d_img, 0.0, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	double *d_av_img;
-	cudaMalloc((void**)&d_av_img, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	cudaMemset(d_av_img, 0.0, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(double));
-	double *_d_imageVector;
-	cudaMalloc((void**)&_d_imageVector, _channels * (_leftCortexSize + _rightCortexSize) * sizeof(double));
-	cudaMemcpy(_d_imageVector, h_imageVector, _channels * (_leftCortexSize + _rightCortexSize) * sizeof(double), cudaMemcpyHostToDevice);
-
-	cort_image_kernel<<<ceil(_channels * _rightCortexSize / 512.0), 512>>>(d_img, d_av_img, _d_imageVector,
-			d_rightFields, d_rightLoc, d_gauss, _channels * _rightCortexSize, _leftCortexSize + _rightCortexSize, _rgb);
-	//cudaDeviceSynchronize();
-	cudaCheckErrors("ERROR");
-
-	uchar *d_norm;
-	cudaMalloc((void**)&d_norm, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(uchar));
-	normalise<<<ceil(_channels * _cortImgSize.x * _cortImgSize.y / 512.0), 512>>>(d_norm, d_img, d_av_img, _channels * _cortImgSize.x * _cortImgSize.y);
-	//cudaDeviceSynchronize();
-	cudaCheckErrors("ERROR");
-
-	cudaMemcpy(h_result, d_norm, _channels * _cortImgSize.x * _cortImgSize.y * sizeof(uchar), cudaMemcpyDeviceToHost);
-	cudaCheckErrors("ERROR");
-
-	cudaFree(d_norm);
-	cudaFree(_d_imageVector);
-	cudaFree(d_av_img);
-	cudaFree(d_img);
-	return 0;*/
 }
 
-__host__ error Cortex::locationsFromCortexFields(SamplingPoint *h_leftFields, size_t leftSize,
+error Cortex::initFromCortexFields(SamplingPoint *h_leftFields, size_t leftSize,
 											SamplingPoint *h_rightFields, size_t rightSize) {
 
 	if (isnan(_shrink) || isnan(_alpha))
@@ -313,13 +288,13 @@ __host__ error Cortex::locationsFromCortexFields(SamplingPoint *h_leftFields, si
 
 	double2 *d_eucl_left;
 	cudaMalloc((void**)&d_eucl_left, _leftCortexSize * _leftCortexSize * sizeof(double2));
-	euclidean_distance_kernel<<<ceil(_leftCortexSize * _leftCortexSize / 512.0), 512>>>(d_leftLoc, d_eucl_left, _leftCortexSize);
+	euclidean_distance_kernel<<<ceil(_leftCortexSize * _leftCortexSize / 1024.0), 1024>>>(d_leftLoc, d_eucl_left, _leftCortexSize);
 	//cudaDeviceSynchronize();
 	//cudaCheckErrors("ERROR");
 
 	double2 *d_eucl_right;
 	cudaMalloc((void**)&d_eucl_right, _rightCortexSize * _rightCortexSize * sizeof(double2));
-	euclidean_distance_kernel<<<ceil(_rightCortexSize * _rightCortexSize / 512.0), 512>>>(d_rightLoc, d_eucl_right, _rightCortexSize);
+	euclidean_distance_kernel<<<ceil(_rightCortexSize * _rightCortexSize / 1024.0), 1024>>>(d_rightLoc, d_eucl_right, _rightCortexSize);
 	cudaDeviceSynchronize();
 	cudaCheckErrors("ERROR");
 
@@ -376,113 +351,108 @@ __host__ error Cortex::locationsFromCortexFields(SamplingPoint *h_leftFields, si
 	return 0;
 }
 
-__host__ void Cortex::gauss100() {
+void Cortex::gauss100() {
 	setPointerToNull(&d_gauss);
+	setPointerToNull(&d_leftNorm);
+	setPointerToNull(&d_rightNorm);
 	cudaMalloc((void**)&d_gauss, 100 * _gaussKernelWidth * _gaussKernelWidth * sizeof(double));
 	gauss_kernel<<<10, 10>>>(d_gauss);
 	cudaDeviceSynchronize();
 	cudaCheckErrors("ERROR");
 }
 
-__host__ bool Cortex::isReady() const {
-	return  _leftCortexSize != 0 && _rightCortexSize != 0 &&
+bool Cortex::isReady() const {
+	return _leftCortexSize != 0 && _rightCortexSize != 0 &&
 			d_leftLoc != nullptr && d_rightLoc != nullptr &&
 			_cortImgSize.x != 0 && _cortImgSize.y != 0 &&
 			_gaussKernelWidth != 0 && d_gauss != nullptr;
 }
 
-__host__ void Cortex::setAlpha(float alpha) {
+void Cortex::setAlpha(float alpha) {
 	if (alpha == _alpha)
 		return;
 	setPointerToNull(&d_leftLoc);
 	setPointerToNull(&d_rightLoc);
+	setPointerToNull(&d_leftNorm);
+	setPointerToNull(&d_rightNorm);
 	_alpha = alpha;
 	cudaMemcpyToSymbol(ALPHA, &_alpha, sizeof(float));
 	cudaCheckErrors("ERROR");
 }
 
-__host__ void Cortex::setShrink(float shrink) {
+void Cortex::setShrink(float shrink) {
 	if (shrink == _shrink)
 		return;
 	setPointerToNull(&d_leftLoc);
 	setPointerToNull(&d_rightLoc);
+	setPointerToNull(&d_leftNorm);
+	setPointerToNull(&d_rightNorm);
 	_shrink = shrink;
 	cudaMemcpyToSymbol(SHRINK, &_shrink, sizeof(float));
 	cudaCheckErrors("ERROR");
 }
 
-__host__ void Cortex::setRGB(bool rgb) {
+void Cortex::setRGB(bool rgb) {
 	if (rgb == _rgb)
 		return;
 	_rgb = rgb;
 	_channels = _rgb ? 3 : 1;
 }
 
-__host__ void Cortex::setCortImageSize(uint2 cortImgSize) {
+void Cortex::setCortImageSize(uint2 cortImgSize) {
 	if (cortImgSize.x == _cortImgSize.x && cortImgSize.y == _cortImgSize.y)
 		return;
 	_cortImgSize = cortImgSize;
+	setPointerToNull(&d_leftNorm);
+	setPointerToNull(&d_rightNorm);
 	cudaMemcpyToSymbol(CORT_IMG_SIZE, &_cortImgSize, sizeof(uint2));
 	cudaCheckErrors("ERROR");
 }
 
-__host__ error Cortex::getLeftCortexFields(SamplingPoint *h_leftFields, size_t leftSize) const {
+error Cortex::getLeftCortexFields(SamplingPoint *h_leftFields, size_t leftSize) const {
 	return getFromDevice(h_leftFields, leftSize, d_leftFields, _leftCortexSize);
 }
 
-__host__ error Cortex::setLeftCortexFields(const SamplingPoint *h_leftFields, const size_t leftSize) {
+error Cortex::setLeftCortexFields(const SamplingPoint *h_leftFields, const size_t leftSize) {
 	return setOnDevice(h_leftFields, leftSize, &d_leftFields, _leftCortexSize);
 }
 
-__host__ error Cortex::getRightCortexFields(SamplingPoint *h_rightFields, size_t rightSize) const {
+error Cortex::getRightCortexFields(SamplingPoint *h_rightFields, size_t rightSize) const {
 	return getFromDevice(h_rightFields, rightSize, d_rightFields, _rightCortexSize);
 }
 
-__host__ error Cortex::setRightCortexFields(const SamplingPoint *h_rightFields, size_t rightSize) {
+error Cortex::setRightCortexFields(const SamplingPoint *h_rightFields, size_t rightSize) {
 	return setOnDevice(h_rightFields, rightSize, &d_rightFields, _rightCortexSize);
 }
 
-__host__ error Cortex::getLeftCortexLocations(double2 *h_leftLoc, size_t leftSize) const {
+error Cortex::getLeftCortexLocations(double2 *h_leftLoc, size_t leftSize) const {
 	return getFromDevice(h_leftLoc, leftSize, d_leftLoc, _leftCortexSize);
 }
 
-__host__ int Cortex::setLeftCortexLocations(const double2 *h_leftLoc, size_t leftSize) {
+int Cortex::setLeftCortexLocations(const double2 *h_leftLoc, size_t leftSize) {
 	if (leftSize != _leftCortexSize)
 		return ERRORS::cortexSizeDidNotMatch;
-	return setOnDevice(h_leftLoc, leftSize, &d_leftLoc, _leftCortexSize);
-	/*if (h_leftLoc != nullptr) {
-		if (leftSize != _leftCortexSize)
-			return ERRORS::cortexSizeDidNotMatch;
-		setPointerToNull(&d_leftLoc);
-		cudaMalloc((void**)&d_leftLoc, sizeof(double2) * _leftCortexSize);
-		cudaMemcpy(d_leftLoc, h_leftLoc, sizeof(double2) * _leftCortexSize, cudaMemcpyHostToDevice);
-		cudaCheckErrors("ERROR");
+	int err = setOnDevice(h_leftLoc, leftSize, &d_leftLoc, _leftCortexSize);
+	if (err == 0) {
+		setPointerToNull(&d_leftNorm);
 	}
-
-	return 0;*/
+	return err;
 }
 
-__host__ error Cortex::getRightCortexLocations(double2 *h_rightLoc, size_t rightSize) const {
+error Cortex::getRightCortexLocations(double2 *h_rightLoc, size_t rightSize) const {
 	return getFromDevice(h_rightLoc, rightSize, d_rightLoc, _rightCortexSize);
 }
 
-__host__ int Cortex::setRightCortexLocations(const double2 *h_rightLoc, size_t rightSize) {
+int Cortex::setRightCortexLocations(const double2 *h_rightLoc, size_t rightSize) {
 	if (rightSize != _rightCortexSize)
 		return ERRORS::cortexSizeDidNotMatch;
-	return setOnDevice(h_rightLoc, rightSize, &d_rightLoc, _rightCortexSize);
-	/*if (h_rightLoc != nullptr) {
-		if (rightSize != _rightCortexSize)
-			return ERRORS::cortexSizeDidNotMatch;
-		setPointerToNull(&d_rightLoc);
-		cudaMalloc((void**)&d_rightLoc, sizeof(double2) * _rightCortexSize);
-		cudaMemcpy(d_rightLoc, h_rightLoc, sizeof(double2) * _rightCortexSize, cudaMemcpyHostToDevice);
-		cudaCheckErrors("ERROR");
-	}
-
-	return 0;*/
+	int err = setOnDevice(h_rightLoc, rightSize, &d_rightLoc, _rightCortexSize);
+	if (err == 0)
+		setPointerToNull(&d_rightNorm);
+	return err;
 }
 
-__host__ error Cortex::getGauss100( double *h_gauss, size_t kernelWidth, float sigma) const {
+error Cortex::getGauss100( double *h_gauss, size_t kernelWidth, float sigma) const {
 	if (kernelWidth != _gaussKernelWidth || sigma != _gaussSigma)
 		return ERRORS::invalidArguments;
 	cudaMemcpy(h_gauss, d_gauss, 100 * _gaussKernelWidth * _gaussKernelWidth * sizeof(double), cudaMemcpyDeviceToHost);
@@ -490,7 +460,7 @@ __host__ error Cortex::getGauss100( double *h_gauss, size_t kernelWidth, float s
 	return 0;
 }
 
-__host__ error Cortex::setGauss100(const size_t kernelWidth, const float sigma, double *h_gauss) {
+error Cortex::setGauss100(const size_t kernelWidth, const float sigma, double *h_gauss) {
 	if (kernelWidth == 0)
 		return ERRORS::invalidArguments;
 	_gaussKernelWidth = kernelWidth;
@@ -498,6 +468,8 @@ __host__ error Cortex::setGauss100(const size_t kernelWidth, const float sigma, 
 	_gaussSigma = sigma;
 	cudaMemcpyToSymbol(GAUSS_SIGMA, &_gaussSigma, sizeof(float));
 	cudaCheckErrors("ERROR");
+	setPointerToNull(&d_leftNorm);
+	setPointerToNull(&d_rightNorm);
 
 	if (h_gauss == nullptr) {
 		gauss100();
@@ -511,7 +483,7 @@ __host__ error Cortex::setGauss100(const size_t kernelWidth, const float sigma, 
 }
 
 template <class T>
-	__host__ error Cortex::getFromDevice(T *h_ptr, const size_t h_size, const T *d_ptr, const size_t d_size) const {
+error Cortex::getFromDevice(T *h_ptr, const size_t h_size, const T *d_ptr, const size_t d_size) const {
 	if (h_ptr == nullptr || h_size == 0)
 		return ERRORS::invalidArguments;
 	if (h_size != d_size)
@@ -524,7 +496,7 @@ template <class T>
 }
 
 template <class T>
-	__host__ error Cortex::setOnDevice(const T *h_ptr, size_t h_size, T **d_ptr, size_t &d_size) {
+error Cortex::setOnDevice(const T *h_ptr, size_t h_size, T **d_ptr, size_t &d_size) {
 	if (h_ptr == nullptr || h_size == 0)
 		return ERRORS::invalidArguments;
 

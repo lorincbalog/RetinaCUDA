@@ -100,7 +100,7 @@ __global__ void normalise_kernel(double *d_image_out, double *d_gauss, uchar *d_
 }
 
 template <class T>
-__host__ void setPointerToNull(T **d_ptr) {
+void setPointerToNull(T **d_ptr) {
 	if (*d_ptr != nullptr){
 		cudaFree(*d_ptr);
 		cudaCheckErrors("ERROR");
@@ -114,7 +114,7 @@ Retina::~Retina() {
 	removeSamplingPointsFromDevice();
 }
 
-__host__ int Retina::sample(const uchar *h_imageIn, size_t imageH, size_t imageW, size_t imageC,
+int Retina::sample(const uchar *h_imageIn, size_t imageH, size_t imageW, size_t imageC,
 							double *h_imageVector, size_t vectorLength, bool keepImageVectorOnDevice) {
 	if ((h_imageVector == nullptr && !keepImageVectorOnDevice) ||  h_imageIn == nullptr)
 		return ERRORS::invalidArguments;
@@ -157,7 +157,7 @@ __host__ int Retina::sample(const uchar *h_imageIn, size_t imageH, size_t imageW
 	return 0;
 }
 
-__host__ int Retina::inverse(const double *h_imageVector,  size_t vectorLength,
+int Retina::inverse(const double *h_imageVector,  size_t vectorLength,
 							 uchar *h_imageInverse, size_t imageH, size_t imageW, size_t imageC,
 							 bool useImageVectorOnDevice) const {
 	if ((h_imageVector == nullptr && !useImageVectorOnDevice) ||  h_imageInverse == nullptr )
@@ -203,7 +203,7 @@ __host__ int Retina::inverse(const double *h_imageVector,  size_t vectorLength,
 	return 0;
 }
 
-__host__ int Retina::setSamplingFields(SamplingPoint *h_points, size_t retinaSize) {
+int Retina::setSamplingFields(SamplingPoint *h_points, size_t retinaSize) {
 	if (h_points == nullptr)
 		return ERRORS::invalidArguments;
 	removeSamplingPointsFromDevice();
@@ -225,7 +225,7 @@ __host__ int Retina::setSamplingFields(SamplingPoint *h_points, size_t retinaSiz
 	return 0;
 }
 
-__host__ int Retina::getSamplingFields(SamplingPoint *h_points, size_t retinaSize) {
+int Retina::getSamplingFields(SamplingPoint *h_points, size_t retinaSize) {
 	if (retinaSize != _retinaSize)
 		return ERRORS::retinaSizeDidNotMatch;
 	if (d_points == nullptr && h_points == nullptr)
@@ -235,7 +235,7 @@ __host__ int Retina::getSamplingFields(SamplingPoint *h_points, size_t retinaSiz
 	return 0;
 }
 
-__host__ int Retina::setGaussNormImage(const double *h_gauss, size_t gaussH, size_t gaussW, size_t gaussC) {
+int Retina::setGaussNormImage(const double *h_gauss, size_t gaussH, size_t gaussW, size_t gaussC) {
 	if (h_gauss != nullptr) {
 		if (!validateImageSize(gaussH, gaussW, gaussC))
 			return ERRORS::imageParametersDidNotMatch;
@@ -253,7 +253,7 @@ __host__ int Retina::setGaussNormImage(const double *h_gauss, size_t gaussH, siz
 	return 0;
 }
 
-__host__ int Retina::getGaussNormImage(double *h_gauss, size_t gaussH, size_t gaussW, size_t gaussC) const {
+int Retina::getGaussNormImage(double *h_gauss, size_t gaussH, size_t gaussW, size_t gaussC) const {
 	if (!validateImageSize(gaussH, gaussW, gaussC))
 		return ERRORS::imageParametersDidNotMatch;
 	if (d_gauss == nullptr && h_gauss == nullptr)
@@ -263,7 +263,7 @@ __host__ int Retina::getGaussNormImage(double *h_gauss, size_t gaussH, size_t ga
 	return 0;
 }
 
-__host__ void Retina::setImageHeight(const int imageH) {
+void Retina::setImageHeight(const int imageH) {
 	if (imageH != _imageH)
 		setPointerToNull(&d_gauss);
 	_imageH = imageH;
@@ -271,7 +271,7 @@ __host__ void Retina::setImageHeight(const int imageH) {
 	cudaCheckErrors("ERROR");
 }
 
-__host__ void Retina::setImageWidth(const int imageW) {
+void Retina::setImageWidth(const int imageW) {
 	if (imageW != _imageW)
 		setPointerToNull(&d_gauss);
 	_imageW = imageW;
@@ -279,14 +279,14 @@ __host__ void Retina::setImageWidth(const int imageW) {
 	cudaCheckErrors("ERROR");
 }
 
-__host__ void Retina::setRGB(const bool rgb) {
+void Retina::setRGB(const bool rgb) {
 	if (rgb != _rgb)
 		setPointerToNull(&d_gauss);
 	_rgb = rgb;
 	_channels = rgb ? 3 : 1;
 }
 
-__host__ void Retina::setCenterX(const int centerX) {
+void Retina::setCenterX(const int centerX) {
 	if (centerX != _centerX)
 		setPointerToNull(&d_gauss);
 	_centerX = centerX;
@@ -294,7 +294,7 @@ __host__ void Retina::setCenterX(const int centerX) {
 	cudaCheckErrors("ERROR");
 }
 
-__host__ void Retina::setCenterY(const int centerY) {
+void Retina::setCenterY(const int centerY) {
 	if (centerY != _centerY)
 		setPointerToNull(&d_gauss);
 	_centerY = centerY;
@@ -302,23 +302,23 @@ __host__ void Retina::setCenterY(const int centerY) {
 	cudaCheckErrors("ERROR");
 }
 
-__host__ double* Retina::imageVectorOnDevice(size_t &vectorLength) {
+double* Retina::imageVectorOnDevice(size_t &vectorLength) {
 	vectorLength = _channels * _retinaSize;
 	return _d_imageVector;
 }
 
-__host__ bool Retina::validateImageSize(size_t imageH, size_t imageW, size_t imageC) const {
+bool Retina::validateImageSize(size_t imageH, size_t imageW, size_t imageC) const {
 	if (imageH != _imageH || imageW != _imageW || imageC != _channels)
 		return false;
 	return true;
 }
 
-__host__ bool Retina::isReady() const {
+bool Retina::isReady() const {
 	return _imageH != 0 && _imageW != 0 && _centerX != 0 &&
 			_centerY != 0 && d_gauss != nullptr && _retinaSize != 0 && d_points != nullptr;
 }
 
-__host__ int Retina::removeSamplingPointsFromDevice() {
+int Retina::removeSamplingPointsFromDevice() {
 	if (d_points != nullptr) {
 		SamplingPoint *h_points = (SamplingPoint*)malloc(sizeof(SamplingPoint) * _retinaSize);
 		cudaMemcpy(h_points, d_points, sizeof(SamplingPoint) * _retinaSize, cudaMemcpyDeviceToHost);

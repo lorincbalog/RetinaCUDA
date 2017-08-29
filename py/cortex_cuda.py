@@ -20,8 +20,8 @@ class Cortex(object):
         lib.Cortex_new.argtypes = []
         lib.Cortex_new.restype = ctypes.c_void_p
 
-        lib.Cortex_locationsFromRetinaFields.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_size_t]
-        lib.Cortex_locationsFromRetinaFields.restype = ctypes.c_int
+        lib.Cortex_initFromRetinaFields.argtypes = [ctypes.c_void_p, ctypes.POINTER(ctypes.c_float), ctypes.c_size_t]
+        lib.Cortex_initFromRetinaFields.restype = ctypes.c_int
 
         lib.Cortex_getAlpha.argtypes = [ctypes.c_void_p]
         lib.Cortex_getAlpha.restype = ctypes.c_float
@@ -124,15 +124,15 @@ class Cortex(object):
     def gauss_sigma(self):
         return lib.Cortex_getGaussSigma(self.obj)
 
-    def locations_from_sampling_fields(self, fields):
+    def init_from_sampling_fields(self, fields):
         if fields is None:
-            lib.Cortex_locationsFromRetinaFields(self.obj, None, 0)
+            lib.Cortex_initFromRetinaFields(self.obj, None, 0)
             return
         if fields.shape[0] == 0:
             return False
 
         loc1D = fields.flatten()
-        err = lib.Cortex_locationsFromRetinaFields(self.obj, (ctypes.c_float * len(loc1D))(*loc1D), fields.shape[0])
+        err = lib.Cortex_initFromRetinaFields(self.obj, (ctypes.c_float * len(loc1D))(*loc1D), fields.shape[0])
         resolveError(err)
         return True
 
