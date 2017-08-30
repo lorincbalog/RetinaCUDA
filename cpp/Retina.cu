@@ -200,6 +200,7 @@ int Retina::inverse(const double *h_imageVector,  size_t vectorLength,
 	if (!useImageVectorOnDevice)
 		cudaFree(d_imageVector);
 	cudaFree(d_imageInverse);
+	cudaFree(d_imageInverseNorm);
 	cudaCheckErrors("ERROR");
 	return 0;
 }

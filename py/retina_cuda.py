@@ -291,14 +291,14 @@ def convert_from_Piotr(rgb_image_vector):
         flattened image vector
     '''
     retina_size = rgb_image_vector.shape[0]
-    return np.hstack(\
-        (np.resize(rgb_image_vector[:,0], (1, retina_size)),\
-        np.resize(rgb_image_vector[:,1], (1, retina_size)),\
-        np.resize(rgb_image_vector[:,2], (1, retina_size))))
+    return np.append(\
+    np.resize(rgb_image_vector[:,0], (1, retina_size))[0],\
+    [np.resize(rgb_image_vector[:,1], (1, retina_size))[0],\
+    np.resize(rgb_image_vector[:,2], (1, retina_size))[0]])
 
 def create_retina(loc, coeff, img_size, center, gauss_norm=None):
     # Instantiate retina
-    ret = retina_cuda.Retina()
+    ret = Retina()
     # Set retina's parameters
     # It is good practice to initialise the retina once
     # and use for multiple sampling and inversion without changin the parameters

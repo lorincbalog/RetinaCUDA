@@ -132,6 +132,7 @@ def correctness_test(loc, coeff, cap, rgb=False):
             c_c = np.concatenate((np.rot90(l_c),np.rot90(r_c,k=3)),axis=1) #concatenate the results into one image
         
             # create Piotr's retina and cortical images
+            
             GI = retina.gauss_norm_img(int(img.shape[1]/2), int(img.shape[0]/2), coeff, loc, img.shape, rgb)
             L, R = cortex.LRsplit(loc)
             L_loc, R_loc = cortex.cort_map(L, R)
@@ -140,6 +141,7 @@ def correctness_test(loc, coeff, cap, rgb=False):
             inv_p = retina.inverse(V_p, img.shape[1]/2, img.shape[0]/2, coeff, loc, GI, img.shape, rgb)
             l_p, r_p = cortex.cort_img(V_p, L, L_loc, R, R_loc, cort_size, G)
             c_p = np.concatenate((np.rot90(l_p[:l_c.shape[0],:]),np.rot90(r_p[:r_c.shape[0],:],k=3)),axis=1)
+            
 
             # show CUDA results
             cv2.namedWindow("inverse CUDA", cv2.WINDOW_NORMAL)
@@ -239,8 +241,8 @@ if __name__ == "__main__":
         cap = cv2.VideoCapture(camid)
         camid += 1
 
-    #correctness_test(loc[0], coeff[0], cap, rgb=False)
-    compatibility_test(loc[0], coeff[0], cap, True)
+    #correctness_test(loc[0], coeff[0], cap, rgb=True)
+    compatibility_test(loc[0], coeff[0], cap, False)
     #compatibility_test(loc50k, coeff50k, cap, False)
     
     

@@ -199,6 +199,8 @@ void setPointerToNull(T **d_ptr) {
 }
 
 Cortex::~Cortex() {
+	setPointerToNull(&d_leftFields);
+	setPointerToNull(&d_rightFields);
 	setPointerToNull(&d_leftLoc);
 	setPointerToNull(&d_rightLoc);
 	setPointerToNull(&d_gauss);
