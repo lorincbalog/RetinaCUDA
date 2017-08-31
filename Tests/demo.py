@@ -47,27 +47,25 @@ cortexes = np.empty((2,5), dtype=object)
 r, img = cap.read()
 while not r: r, img = cap.read()
 
-#GIc = retina.gauss_norm_img(int(img.shape[1]/2), int(img.shape[0]/2), coeff50k, loc50k, img.shape, True)
-GIg = retina.gauss_norm_img(int(img.shape[1]/2), int(img.shape[0]/2), coeff50k, loc50k, img.shape, False)
 L, R = cortex.LRsplit(loc50k)
 L_loc, R_loc = cortex.cort_map(L, R)
 L_loc, R_loc, G, cort_size = cortex.cort_prepare(L_loc, R_loc)
 
 for i in range(0,4):
-    retinas[0][i] = retina_cuda.create_retina(loc[i], coeff[i], img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)))
-    retinas[1][i] = retina_cuda.create_retina(loc[i], coeff[i], (img.shape[0], img.shape[1]), (int(img.shape[1]/2), int(img.shape[0]/2)))
-    cortexes[0][i] = cortex_cuda.create_cortex_from_fields(loc[i], rgb=True)
-    cortexes[1][i] = cortex_cuda.create_cortex_from_fields(loc[i], rgb=False)
+    retinas[0,i] = retina_cuda.create_retina(loc[i], coeff[i], img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)))
+    retinas[1,i] = retina_cuda.create_retina(loc[i], coeff[i], (img.shape[0], img.shape[1]), (int(img.shape[1]/2), int(img.shape[0]/2)))
+    cortexes[0,i] = cortex_cuda.create_cortex_from_fields(loc[i], rgb=True)
+    cortexes[1,i] = cortex_cuda.create_cortex_from_fields(loc[i], rgb=False)
 
 retinas[0][4] = retina_cuda.create_retina(loc50k, coeff50k, img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)))
 retinas[1][4] = retina_cuda.create_retina(loc50k, coeff50k, (img.shape[0], img.shape[1]), (int(img.shape[1]/2), int(img.shape[0]/2)))
-cortexes[0][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, (cort0.cort_image_size[0], cort_size[1]), gauss100=GIg, rgb=True)
-cortexes[1][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, (cort0.cort_image_size[0], cort_size[1]), gauss100=GIg, rgb=False)
+cortexes[0][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_size, gauss100=G, rgb=True)
+cortexes[1][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_size, gauss100=G, rgb=False)
 
-i = 1
+i = 0
 rgb = False
-print 'Press i to increase the retina size'
-print 'Press q to decrease the retina size'
+print 'Press f to change retina size forward'
+print 'Press b to change retina size backward'
 print 'Press c to switch between color and grayscale'
 print 'Press q to quit'
 while True:
@@ -80,7 +78,7 @@ while True:
         l_c = cortexes[0 if rgb else 1][i%5].cort_image_left(V_c) # left cortical image CUDA
         r_c = cortexes[0 if rgb else 1][i%5].cort_image_right(V_c) # right cortical image CUDA
         c_c = np.concatenate((np.rot90(l_c),np.rot90(r_c,k=3)),axis=1) #concatenate the results into one image
-
+        
         # show CUDA results
         cv2.namedWindow("inverse CUDA", cv2.WINDOW_NORMAL)
         cv2.imshow("inverse CUDA", inv_c)
@@ -89,11 +87,11 @@ while True:
         
     key = cv2.waitKey(10)
     if key == ord('q'): break
-    if key == ord('i'): 
-        i += 1
+    if key == ord('f'): 
+        i = abs(i+1)
         print 'New retina size: %i' % retinas[0 if rgb else 1][i%5].retina_size
-    if key == ord('d'): 
-        i -= 1
+    if key == ord('b'): 
+        i = abs(i-1)
         print 'New retina size: %i' % retinas[0 if rgb else 1][i%5].retina_size
     if key == ord('c'): 
         rgb = not rgb
