@@ -47,6 +47,7 @@ cortexes = np.empty((2,5), dtype=object)
 r, img = cap.read()
 while not r: r, img = cap.read()
 
+img = cv2.resize(img, (1920,1080))
 L, R = cortex.LRsplit(loc50k)
 L_loc, R_loc = cortex.cort_map(L, R)
 L_loc, R_loc, G, cort_size = cortex.cort_prepare(L_loc, R_loc)
@@ -62,24 +63,33 @@ retinas[1][4] = retina_cuda.create_retina(loc50k, coeff50k, (img.shape[0], img.s
 cortexes[0][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_size, gauss100=G, rgb=True)
 cortexes[1][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_size, gauss100=G, rgb=False)
 
-i = 0
-rgb = False
-print 'Press f to change retina size forward'
-print 'Press b to change retina size backward'
-print 'Press c to switch between color and grayscale'
+#### TRACKBAR
+def nothing(x):
+    pass
+cv2.namedWindow('Settings', cv2.WINDOW_NORMAL)
+cv2.createTrackbar('Retina','Settings',0,4,nothing)
+cv2.createTrackbar('Color mode','Settings',0,1,nothing)
+###
+
 print 'Press q to quit'
 while True:
+    i = cv2.getTrackbarPos('Retina', 'Settings')
+    rgb = False if cv2.getTrackbarPos('Color mode', 'Settings') == 0 else True
     r, img = cap.read()
+    img = cv2.resize(img, (1920,1080))
     if not rgb: img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     if r:
+	start = time.time()
         V_c = retinas[0 if rgb else 1][i%5].sample(img) # sample with CUDA
         inv_c = retinas[0 if rgb else 1][i%5].inverse(V_c) # inverse with CUDA
     
         l_c = cortexes[0 if rgb else 1][i%5].cort_image_left(V_c) # left cortical image CUDA
         r_c = cortexes[0 if rgb else 1][i%5].cort_image_right(V_c) # right cortical image CUDA
-        c_c = np.concatenate((np.rot90(l_c),np.rot90(r_c,k=3)),axis=1) #concatenate the results into one image
-        
-        # show CUDA results
+        end = time.time()
+	print end-start
+
+        c_c = np.concatenate((np.rot90(l_c),np.rot90(r_c,k=3)),axis=1)
+
         cv2.namedWindow("inverse CUDA", cv2.WINDOW_NORMAL)
         cv2.imshow("inverse CUDA", inv_c)
         cv2.namedWindow("cortex CUDA", cv2.WINDOW_NORMAL)
@@ -87,12 +97,3 @@ while True:
         
     key = cv2.waitKey(10)
     if key == ord('q'): break
-    if key == ord('f'): 
-        i = abs(i+1)
-        print 'New retina size: %i' % retinas[0 if rgb else 1][i%5].retina_size
-    if key == ord('b'): 
-        i = abs(i-1)
-        print 'New retina size: %i' % retinas[0 if rgb else 1][i%5].retina_size
-    if key == ord('c'): 
-        rgb = not rgb
-        print 'RGB mode' if rgb else 'Grayscale mode' 
