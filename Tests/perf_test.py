@@ -34,11 +34,12 @@ with open(retina_path + '/ret50k_loc.pkl', 'rb') as handle:
 with open(retina_path + '/ret50k_coeff.pkl', 'rb') as handle:
     coeff50k = pickle.load(handle)
         
+'''
 def create_retina(loc, coeff, img_size, center, gauss_norm=None):
-    '''
+    '#''
     This function is a duplicate of retina_cuda.create_retina
     to improve code's understandability
-    '''
+    '#''
     # Instantiate retina
     ret = retina_cuda.Retina()
     # Set retina's parameters
@@ -59,10 +60,10 @@ def create_retina(loc, coeff, img_size, center, gauss_norm=None):
     return ret
 
 def create_cortex_from_fields(loc, alpha=15, shrink=0.5, k_width=7, sigma=0.8, gauss100=None, rgb=False):
-    '''
+    '#''
     This function is a duplicate of cortex_cuda.create_cortex_from_fields
     to improve code's understandability
-    '''
+    '#''
     # Instantiate cortex
     cort = cortex_cuda.Cortex()
     # Set parameters. Alpha and shrink should be set before anything else
@@ -80,10 +81,10 @@ def create_cortex_from_fields(loc, alpha=15, shrink=0.5, k_width=7, sigma=0.8, g
     return cort
 
 def create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_img_size, k_width=7, sigma=0.8, gauss100=None, rgb=False):
-    '''
+    '#''
     This function is a duplicate of cortex_cuda.create_cortex_from_fields_and_locs
     to improve code's understandability
-    '''
+    '#''
     # Instantiate cortex
     cort = cortex_cuda.Cortex()
     cort.rgb = rgb
@@ -101,6 +102,7 @@ def create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_img_size, k_widt
     cort.set_right_cortex_locations(R_loc)
     cort.cort_image_size = cort_img_size
     return cort
+'''
 
 def speedup(loc, coeff, img, rgb, show_res):
     '''
@@ -111,7 +113,7 @@ def speedup(loc, coeff, img, rgb, show_res):
     # GI = retina.gauss_norm_img(int(img.shape[1]/2), int(img.shape[0]/2), coeff, loc, img.shape, rgb)
     
     init_c = time.time()
-    ret = create_retina(loc, coeff, img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)))
+    ret = retina_cuda.create_retina(loc, coeff, img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)))
     
     # sample_p = time.time()
     # V_p = retina.sample(img, img.shape[1]/2, img.shape[0]/2, coeff, loc, rgb)
@@ -132,7 +134,7 @@ def speedup(loc, coeff, img, rgb, show_res):
     # L_loc, R_loc, G, cort_size = cortex.cort_prepare(L_loc, R_loc)
 
     cort_init_c = time.time()
-    cort = create_cortex_from_fields(loc, rgb=rgb)
+    cort = cortex_cuda.create_cortex_from_fields(loc, rgb=rgb)
 
     # cort_img_p = time.time()
     # l_p, r_p = cortex.cort_img(V_p, L, L_loc, R, R_loc, cort_size, G)
@@ -205,7 +207,7 @@ def ideal_usage_cam(loc, coeff, show_res=False, rgb=False):
     r, img = cap.read()
     if not rgb: img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # instantiate a retina
-    ret = create_retina(loc, coeff, img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)))
+    ret = retina_cuda.create_retina(loc, coeff, img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)))
     # instantiate a cortex
     # NOTE: there is a limitation of this function, namely if
     # the size of L or R will be greater than 8000,
@@ -213,7 +215,7 @@ def ideal_usage_cam(loc, coeff, show_res=False, rgb=False):
     # WORKAROUND: if this is the case (eg 50k ret)
     # calc L, R L_loc and R_loc with Piotr's code
     # and pass it to the cortex as in create_cortex_from_fields_and_locs
-    cort = create_cortex_from_fields(loc, rgb=rgb)
+    cort = cortex_cuda.create_cortex_from_fields(loc, rgb=rgb)
     # for best performance, do not change these objects
 
     # process 200 frames of the camera stream

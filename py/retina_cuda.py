@@ -5,7 +5,7 @@ np.seterr(divide='ignore', invalid='ignore')
 import ctypes
 
 if sys.platform.startswith('linux'):
-    lib = ctypes.cdll.LoadLibrary('/home/lorczi/cuda-workspace/RetinaCUDA/Release/libRetinaCUDA.so')
+    lib = ctypes.cdll.LoadLibrary('../bin/Linux/libRetinaCUDA.so')
 elif sys.platform.startswith('win'):
     lib = ctypes.cdll.LoadLibrary('..\\bin\\Windows\\RetinaCUDA.dll')
 
@@ -87,6 +87,7 @@ class Retina(object):
         self.obj = lib.Retina_new()
 
     def __del__(self):
+        '''Calls the C++ destructor on self'''
         lib.Retina_delete(self.obj)
 
     @property
@@ -158,9 +159,10 @@ class Retina(object):
         Sets the sampling fields of the retina\n
         Parameters
         ----------
-        loc : 2D np.array
+        loc : np.ndarray
             7 values each line, locations of the fields (from matlab)
-        coeff : kernels of the sampling
+        coeff : np.ndarray
+            kernels of the sampling
         '''
         if loc.shape[0] != len(coeff.flatten()):
             print "Number of locs and coeffs must be the same"
@@ -180,7 +182,8 @@ class Retina(object):
         Sets the gaussian matrix to normalise with on invert\n
         Parameters
         ----------
-        guass_norm : 2D np.array, optional
+        guass_norm : np.ndarray, optional
+            shape must be [image_height, image_width]
             if None, CUDA will generate the gauss norm
             if not None, height and width must match with retina's 
             (3rd dimension is handled by the function)
@@ -204,11 +207,11 @@ class Retina(object):
         Sample image\n
         Parameters
         ----------
-        image : np.array
+        image : np.ndarray
             height, width and rgb must match the retina parameters\n
         Returns
         -------
-        image_vector : np.array
+        image_vector : np.ndarray
             sampled flat image vector
             if rgb, must be reshaped to become compatible with Piotr (convert_to_Piotr)
         '''
@@ -233,12 +236,12 @@ class Retina(object):
         Invert image from image vector\n
         Parameters
         ----------
-        image_vector : np.array
+        image_vector : np.ndarray
             length must match retina size\n
             if rgb and from Piotr, must be flattened (convert_from_Piotr)
         Returns
         -------
-        image : np.array
+        image : np.ndarray
             inverted image
         '''
         channels = (3 if self.rgb else 1)
@@ -265,11 +268,11 @@ def convert_to_Piotr(rgb_image_vector):
     Reshape flat RGB image vector to become compatible with Piotr's code\n
     Parameters
     ----------
-    rgb_image_vector : np.array
+    rgb_image_vector : np.ndarray
         Must be flat, with length of retina_size * 3\n
     Returns
     -------
-    rgb_image_vector : np.array
+    rgb_image_vector : np.ndarray
         image vector shaped [retina_size, 3]
     '''
     retina_size = len(rgb_image_vector) / 3
@@ -283,11 +286,11 @@ def convert_from_Piotr(rgb_image_vector):
     Reshape Piotr's RGB image vector to become compatible CUDA implementation\n
     Parameters
     ----------
-    rgb_image_vector : np.array
+    rgb_image_vector : np.ndarray
         must have shape of [retina_size, 3]\n
     Returns
     -------
-    rgb_image_vector : np.array
+    rgb_image_vector : np.ndarray
         flattened image vector
     '''
     retina_size = rgb_image_vector.shape[0]
@@ -297,6 +300,30 @@ def convert_from_Piotr(rgb_image_vector):
     np.resize(rgb_image_vector[:,2], (1, retina_size))[0]])
 
 def create_retina(loc, coeff, img_size, center, gauss_norm=None):
+    '''
+    Instantiate a retina and initialize it with the parameters\n
+    Parameters 
+    ----------
+    loc : np.ndarray, 
+        shape of [retina_size, 7]
+        loaded eg. from mat files
+    coeff : np.ndarray,
+        shape must be [1, retina_size] and the kernels
+        matching the loc's 7th element (kernelwidth)
+    img_size : tuple
+        size of the image, (height, width, optional=channels)
+        if channels provided, the image is handled as rgb (channels must be 3)
+    center : tuple
+        center coordinates of the retina in order of x and y
+    guass_norm : np.ndarray, optional
+            shape must be [image_height, image_width]
+            if None, CUDA will generate the gauss norm
+            if not None, height and width must match with retina's 
+            (3rd dimension is handled by the function)
+    Returns
+    -------
+    new retina_cuda instance
+    '''
     # Instantiate retina
     ret = Retina()
     # Set retina's parameters

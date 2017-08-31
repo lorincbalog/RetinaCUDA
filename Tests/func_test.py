@@ -20,10 +20,14 @@ coeff = [0,0,0,0]
 loc = [0,0,0,0]
 
 coeff[0] = scipy.io.loadmat(mat_data+'/coefficients.mat')['M']
+print coeff[0].shape
+print type(coeff[0])
 coeff[1] = scipy.io.loadmat(mat_data+'/coeff4k.mat')['M4k']
 coeff[2] = scipy.io.loadmat(mat_data+'/coeff1k.mat')['M1k']
 coeff[3] = scipy.io.loadmat(retina_path+'/coeffv2_1.mat')['coeffv2']
 loc[0] = scipy.io.loadmat(mat_data+'/locations.mat')['ind']
+print loc[0].shape
+print type(loc[0])
 loc[1] = scipy.io.loadmat(mat_data+'/loc4k.mat')['ind4k']
 loc[2] = scipy.io.loadmat(mat_data+'/loc1k.mat')['ind1k']
 loc[3] = scipy.io.loadmat(retina_path+'/locv2_1.mat')['locv2']
@@ -33,11 +37,12 @@ with open(retina_path + '/ret50k_loc.pkl', 'rb') as handle:
 with open(retina_path + '/ret50k_coeff.pkl', 'rb') as handle:
     coeff50k = pickle.load(handle)
 
+'''
 def create_retina(loc, coeff, img_size, center, gauss_norm=None):
-    '''
+    '#''
     This function is a duplicate of retina_cuda.create_retina
     to improve code's understandability
-    '''
+    '#''
     # Instantiate retina
     ret = retina_cuda.Retina()
     # Set retina's parameters
@@ -58,10 +63,10 @@ def create_retina(loc, coeff, img_size, center, gauss_norm=None):
     return ret
 
 def create_cortex_from_fields(loc, alpha=15, shrink=0.5, k_width=7, sigma=0.8, gauss100=None, rgb=False):
-    '''
+    '#''
     This function is a duplicate of cortex_cuda.create_cortex_from_fields
     to improve code's understandability
-    '''
+    '#''
     # Instantiate cortex
     cort = cortex_cuda.Cortex()
     # Set parameters. Alpha and shrink should be set before anything else
@@ -79,10 +84,10 @@ def create_cortex_from_fields(loc, alpha=15, shrink=0.5, k_width=7, sigma=0.8, g
     return cort
 
 def create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_img_size, k_width=7, sigma=0.8, gauss100=None, rgb=False):
-    '''
+    '#''
     This function is a duplicate of cortex_cuda.create_cortex_from_fields_and_locs
     to improve code's understandability
-    '''
+    '#''
     # Instantiate cortex
     cort = cortex_cuda.Cortex()
     cort.rgb = rgb
@@ -100,7 +105,7 @@ def create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_img_size, k_widt
     cort.set_right_cortex_locations(R_loc)
     cort.cort_image_size = cort_img_size
     return cort
-    
+'''
 def correctness_test(loc, coeff, cap, rgb=False):
     '''
     CUDA code uses the minimal initialisation from the host,
@@ -111,8 +116,8 @@ def correctness_test(loc, coeff, cap, rgb=False):
     r, img = cap.read()
     if not rgb: img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     # create CUDA objects to pass to evaluation
-    ret = create_retina(loc, coeff, img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)), None)
-    cort = create_cortex_from_fields(loc, rgb=rgb)
+    ret = retina_cuda.create_retina(loc, coeff, img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)), None)
+    cort = cortex_cuda.create_cortex_from_fields(loc, rgb=rgb)
 
     while ord('q') != cv2.waitKey(10):
         r, img = cap.read()
@@ -178,13 +183,13 @@ def compatibility_test(loc, coeff, cap, rgb=False):
 
     # CUDA
     # first retina creates everything on the GPU, proved to be identical with Piotr's implementation
-    ret0 = create_retina(loc, coeff, img.shape, (img.shape[1]/2, img.shape[0]/2), None)
+    ret0 = retina_cuda.create_retina(loc, coeff, img.shape, (img.shape[1]/2, img.shape[0]/2), None)
     # second retina uses the GI from Piotr
-    ret1 = create_retina(loc, coeff, img.shape, (img.shape[1]/2, img.shape[0]/2), GI)
+    ret1 = retina_cuda.create_retina(loc, coeff, img.shape, (img.shape[1]/2, img.shape[0]/2), GI)
     # first cortex creates everything on the GPU, proved to be identical with Piotr's implementation
-    cort0 = create_cortex_from_fields(loc, rgb=rgb)
+    cort0 = cortex_cuda.create_cortex_from_fields(loc, rgb=rgb)
     # second cortex gets all the parameters from Piotr's code
-    cort1 = create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, (cort0.cort_image_size[0], cort_size[1]), gauss100=G, rgb=rgb)
+    cort1 = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, (cort0.cort_image_size[0], cort_size[1]), gauss100=G, rgb=rgb)
     
     # read camera stream
     while ord('q') != cv2.waitKey(10):

@@ -5,7 +5,7 @@ np.seterr(divide='ignore', invalid='ignore')
 import ctypes
 
 if sys.platform.startswith('linux'):
-    lib = ctypes.cdll.LoadLibrary('/home/lorczi/cuda-workspace/RetinaCUDA/Release/libRetinaCUDA.so')
+    lib = ctypes.cdll.LoadLibrary('../bin/Linux/libRetinaCUDA.so')
 elif sys.platform.startswith('win'):
     lib = ctypes.cdll.LoadLibrary('..\\bin\\Windows\\RetinaCUDA.dll')
 
