@@ -28,9 +28,10 @@ Python tests are located in the Tests folder.<br />
 func_test.py contains a correctness test to prove the results are identical with Piotr's results<br />
 perf_test.py contains tests to measure the performance of the CUDA implementation,
 as well as to compare it with the former Python implementation. These tests are good starting point for the API.<br />
-perf_eval.py is used to evaluate the performance of the system
-demo.py is used to demonstrate the library in small application
+perf_eval.py is used to evaluate the performance of the system.<br />
+demo.py is used to demonstrate the library in small application.
 
 # Recompile the binaries
 Nvidia CUDA toolkit must be installed and a C++11 compatible compiler is needed.
-Use NSight or Visual Studio to build the code under ./cpp into a so or dll.
+Use NSight or Visual Studio to build the code under ./cpp into a so or dll. Make sure to turn on Separate Compilation in NSight and
+Relocatable Device Code generation (-rdc=true) in Visual Studio. 
