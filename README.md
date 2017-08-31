@@ -4,24 +4,24 @@ The CUDA implementation has been built into shared libraries, dll for Windows an
 Python wrappers are provided to call the library functions.
 This project is based on Piotr Ozimek's work at the School of Computing Science at the University of Glasgow.
 
-# Repo structure
-bin contains the precompiled shared objects for Linux and the dll for Windows in the Linux and Windows folder, respectively<br />
-cpp contains the CUDA code and the C wrappers<br />
-py contains the Python wrappers and the Piotr's code used as reference in the Piotr_Ozimek_retina folder<br />
-Retinas contains the locations and coefficients representing the retina as samplingfields<br />
-Tests contains two tests used to validate the results and measure the performance of the GPU implementation<br />
+# Repository structure
+<b>bin</b> contains the precompiled shared objects for Linux and the dll for Windows in the Linux and Windows folder, respectively<br />
+<b>cpp</b> contains the CUDA code and the C wrappers<br />
+<b>py</b> contains the Python wrappers and Piotr's code in the Piotr_Ozimek_retina subfolder, used as reference <br />
+<b>Retinas</b> contains the locations and coefficients representing the retina as samplingfields<br />
+<b>Tests</b> contains two tests used to validate the results and measure the performance of the GPU implementation<br />
 
 # Dependencies
 Although the binaries should not depend on any libraries which have not been included,
-to use the Python wrappers and especially to run the tests the following software dependencies apply:
-python 2.7<br />
+to use the Python wrappers and especially to run the tests the following software dependencies apply:<br />
+<b>python 2.7<br />
 opencv-python (2.4.13+) -> must be opencv version 2<br />
 numpy (1.11.1+)<br />
-scipy (0.18.1+)<br />
-NOTE: Tests are using camera stream as an input<br />
+scipy (0.18.1+)<br /></b>
+NOTE: Tests are using camera stream as input<br />
 
 # Tests
-Python tests are located in the Tests folder.
+Python tests are located in the Tests folder.<br />
 func_test.py contains a correctness test to prove the results are identical with Piotr's results<br />
 perf_test.py contains tests to measure the performance of the CUDA implementation,
 as well as to compare it with the former Python implementation
