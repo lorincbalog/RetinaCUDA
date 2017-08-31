@@ -24,7 +24,7 @@ NOTE: Tests are using camera stream as input<br />
 Python tests are located in the Tests folder.<br />
 func_test.py contains a correctness test to prove the results are identical with Piotr's results<br />
 perf_test.py contains tests to measure the performance of the CUDA implementation,
-as well as to compare it with the former Python implementation. These tests are good starting point with the API.
+as well as to compare it with the former Python implementation. These tests are good starting point for the API.
 
 # Recompile the binaries
 Nvidia CUDA toolkit must be installed and a C++11 compatible compiler is needed.
