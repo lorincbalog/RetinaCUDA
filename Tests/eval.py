@@ -1,4 +1,5 @@
 import subprocess
+import time
 
 # # measure initialisation time, performance and Python difference
 # for i in range(0,5):
@@ -35,4 +36,11 @@ if __name__ == '__main__':
                     print test
                     proc = subprocess.Popen(test, shell=True)
                     proc.wait()
-    
+                    time.sleep(20)         
+
+    for c in ['False', 'True']
+        for i in range(0,6):
+            test = 'nvprof python eval50k.py %s %s %s %s' % (c, i, '500', 'False')
+            proc = subprocess.Popen(test, shell=True)
+            proc.wait()
+            time.sleep(20)

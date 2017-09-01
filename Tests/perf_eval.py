@@ -45,7 +45,6 @@ if __name__ == '__main__':
     size_ind = int(args[3])
     stop = int(args[4])
     show_res = (args[5] == 'True')
-    print show_res
     color = (args[6] == 'True')
     if func == 'speedup':
         perf_test.speedup_cam(loc[ind],coeff[ind], img_sizes[size_ind], stop, show_res, color)
