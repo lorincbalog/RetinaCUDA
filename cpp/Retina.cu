@@ -4,35 +4,31 @@
 #include "sm_60_atomic_functions.h"
 #include "CUDAHelper.cuh"
 
-__constant__ int IMAGE_H;
-__constant__ int IMAGE_W;
-__constant__ int CENTER_X;
-__constant__ int CENTER_Y;
-__constant__ int RETINA_SIZE_R;
-
-__global__ void sample_linear_kernel(uchar *d_in, double *d_image_vector, SamplingPoint *d_points, size_t size) {
+__global__ void sample_linear_kernel(uchar *d_in, size_t imageH, size_t imageW,
+		int centerX, int centerY, double *d_image_vector,
+		SamplingPoint *d_points,  size_t retinaSize, bool rgb) {
 	int globalIndex = blockIdx.x * blockDim.x + threadIdx.x;
-	if (size <= globalIndex)
+	if ((rgb ? 3 : 1) * retinaSize <= globalIndex)
 		return;
 
-	int channel = globalIndex / RETINA_SIZE_R;
-	int offset = channel * IMAGE_W * IMAGE_H;
-	int index = globalIndex % RETINA_SIZE_R;
+	int channel = globalIndex / retinaSize;
+	int offset = channel * imageH * imageW;
+	int index = globalIndex % retinaSize;
 
 	SamplingPoint *point = &d_points[index];
 	int kernelSize = point->_kernelSize;
 	double *kernel = point->d_kernel;
 
-	int X = CENTER_X + point->_x - (float)kernelSize/2 + 0.5;
-	int Y = CENTER_Y + point->_y - (float)kernelSize/2 + 0.5;
+	int X = centerX + point->_x - (float)kernelSize/2 + 0.5;
+	int Y = centerY + point->_y - (float)kernelSize/2 + 0.5;
 
 	double value = 0;
 	double normalise =  0;
 	for (int i = 0; i != kernelSize; ++i) {
 		for (int j = 0; j != kernelSize; ++j) {
-			if (X + j >= 0 && Y + i >= 0 && X + j < IMAGE_W && Y + i < IMAGE_H) {
+			if (X + j >= 0 && Y + i >= 0 && X + j < imageW && Y + i < imageH) {
 				normalise += kernel[i * kernelSize + j];
-				value += (double)d_in[offset + (Y + i) * IMAGE_W + X + j] * kernel[i * kernelSize + j];
+				value += (double)d_in[offset + (Y + i) * imageW + X + j] * kernel[i * kernelSize + j];
 			}
 		}
 	}
@@ -40,52 +36,54 @@ __global__ void sample_linear_kernel(uchar *d_in, double *d_image_vector, Sampli
 	d_image_vector[globalIndex] = normalise != 0 ? value / normalise : 0;
 }
 
-__global__ void gaussNorm_kernel(double *d_gauss, SamplingPoint *d_points, size_t size) {
+__global__ void gaussNorm_kernel(double *d_gauss, size_t imageH, size_t imageW,
+		int centerX, int centerY, SamplingPoint *d_points, size_t retinaSize, bool rgb) {
 	int globalIndex = blockIdx.x * blockDim.x + threadIdx.x;
-	if (size <= globalIndex)
+	if ((rgb ? 3 : 1) * retinaSize <= globalIndex)
 		return;
 
-	int channel = globalIndex / RETINA_SIZE_R;
-	int offset = channel * IMAGE_W * IMAGE_H;
-	int index = globalIndex % RETINA_SIZE_R;
+	int channel = globalIndex / retinaSize;
+	int offset = channel * imageH * imageW;
+	int index = globalIndex % retinaSize;
 
 	SamplingPoint *point = &d_points[index];
 	int kernelSize = point->_kernelSize;
 	double *kernel = point->d_kernel;
 
-	int X = CENTER_X + point->_x - (float)kernelSize/2 + 0.5;
-	int Y = CENTER_Y + point->_y - (float)kernelSize/2 + 0.5;
+	int X = centerX + point->_x - (float)kernelSize/2 + 0.5;
+	int Y = centerY + point->_y - (float)kernelSize/2 + 0.5;
 
 	for (int i = 0; i != kernelSize; ++i) {
 		for (int j = 0; j != kernelSize; ++j) {
-			if (X + j >= 0 && Y + i >= 0 && X + j < IMAGE_W && Y + i < IMAGE_H) {
-				atomicAdd(&d_gauss[offset + (Y + i) * IMAGE_W + X + j], kernel[i * kernelSize + j]);
+			if (X + j >= 0 && Y + i >= 0 && X + j < imageW && Y + i < imageH) {
+				atomicAdd(&d_gauss[offset + (Y + i) * imageW + X + j], kernel[i * kernelSize + j]);
 			}
 		}
 	}
 }
 
-__global__ void inverse_kernel(double *d_image_vector, double *d_image_out, SamplingPoint *d_points, size_t size) {
+__global__ void inverse_kernel(double *d_image_vector, double *d_image_out,  size_t imageH, size_t imageW,
+		int centerX, int centerY, SamplingPoint *d_points, size_t retinaSize, bool rgb) {
 	int globalIndex = blockIdx.x * blockDim.x + threadIdx.x;
-	if (size <= globalIndex)
+	if ((rgb ? 3 : 1) * retinaSize <= globalIndex)
 		return;
 
-	int channel = globalIndex / RETINA_SIZE_R;
-	int offset = channel * IMAGE_W * IMAGE_H;
-	int index = globalIndex % RETINA_SIZE_R;
+	int channel = globalIndex / retinaSize;
+	int offset = channel * imageH * imageW;
+	int index = globalIndex % retinaSize;
 
 	SamplingPoint *point = &d_points[index];
 	int kernelSize = point->_kernelSize;
 	double *kernel = point->d_kernel;
 
-	int X = CENTER_X + point->_x - (float)kernelSize/2 + 0.5;
-	int Y = CENTER_Y + point->_y - (float)kernelSize/2 + 0.5;
+	int X = centerX + point->_x - (float)kernelSize/2 + 0.5;
+	int Y = centerY + point->_y - (float)kernelSize/2 + 0.5;
 
 	double V = d_image_vector[globalIndex];
 	for (int i = 0; i != kernelSize; ++i) {
 		for (int j = 0; j != kernelSize; ++j) {
-			if (X + j >= 0 && Y + i >= 0 && X + j < IMAGE_W && Y + i < IMAGE_H) {
-				atomicAdd(&d_image_out[offset + (Y + i) * IMAGE_W + X + j], V * kernel[i * kernelSize + j]);
+			if (X + j >= 0 && Y + i >= 0 && X + j < imageW && Y + i < imageH) {
+				atomicAdd(&d_image_out[offset + (Y + i) * imageW + X + j], V * kernel[i * kernelSize + j]);
 			}
 		}
 	}
@@ -136,8 +134,8 @@ int Retina::sample(const uchar *h_imageIn, size_t imageH, size_t imageW, size_t 
 	double *d_imageVector;
 	cudaMalloc((void**)&d_imageVector, _channels * _retinaSize * sizeof(double));
 	cudaCheckErrors("ERROR");
-
-	sample_linear_kernel<<<ceil(_channels * _retinaSize / 256.0), 256>>>(d_in, d_imageVector, d_points, _channels * _retinaSize);
+	sample_linear_kernel<<<ceil(_channels * _retinaSize / 256.0), 256>>>(d_in, _imageH, _imageW,
+			_centerX, _centerY, d_imageVector, d_points, _retinaSize, _rgb);
 	//cudaDeviceSynchronize();
 	cudaCheckErrors("ERROR");
 
@@ -183,13 +181,15 @@ int Retina::inverse(const double *h_imageVector,  size_t vectorLength,
 	cudaMalloc((void**)&d_imageInverse, sizeof(double) * _channels * _imageH * _imageW);
 	cudaMemset(d_imageInverse, 0, sizeof(double) * _channels * _imageH * _imageW);
 
-	inverse_kernel<<<ceil(_channels * _retinaSize / 512.0), 512>>>(d_imageVector, d_imageInverse, d_points, _channels * _retinaSize);
+	inverse_kernel<<<ceil(_channels * _retinaSize / 512.0), 512>>>(d_imageVector, d_imageInverse, _imageH, _imageW,
+			_centerX, _centerY, d_points, _retinaSize, _rgb);
 	//cudaDeviceSynchronize();
 	cudaCheckErrors("ERROR");
 
 	uchar *d_imageInverseNorm;
 	cudaMalloc((void**)&d_imageInverseNorm, sizeof(uchar) * _channels * _imageH * _imageW);
-	normalise_kernel<<<ceil(_channels * _imageW * _imageH / 256.0), 256>>>(d_imageInverse, d_gauss, d_imageInverseNorm, _channels * _imageW * _imageH);
+	normalise_kernel<<<ceil(_channels * _imageW * _imageH / 256.0), 256>>>(d_imageInverse, d_gauss,
+			d_imageInverseNorm, _channels * _imageW * _imageH);
 	//cudaDeviceSynchronize();
 	cudaCheckErrors("ERROR");
 
@@ -222,8 +222,6 @@ int Retina::setSamplingFields(SamplingPoint *h_points, size_t retinaSize) {
 	}
 
 	_retinaSize = retinaSize;
-	cudaMemcpyToSymbol(RETINA_SIZE_R, &_retinaSize, sizeof(int));
-	cudaCheckErrors("ERROR");
 	return 0;
 }
 
@@ -248,7 +246,9 @@ int Retina::setGaussNormImage(const double *h_gauss, size_t gaussH, size_t gauss
 		setPointerToNull(&d_gauss);
 		cudaMalloc((void**)&d_gauss, sizeof(double) * _channels * _imageH * _imageW);
 		cudaMemset(d_gauss, 0, sizeof(double) * _channels * _imageH * _imageW);
-		gaussNorm_kernel<<<ceil(_channels * _retinaSize / 256.0), 256>>>(d_gauss, d_points, _channels * _retinaSize);
+
+		gaussNorm_kernel<<<ceil(_channels * _retinaSize / 256.0), 256>>>(d_gauss, _imageH, _imageW,
+				_centerX, _centerY, d_points, _retinaSize, _rgb);
 		cudaDeviceSynchronize();
 		cudaCheckErrors("ERROR");
 	}
@@ -269,16 +269,12 @@ void Retina::setImageHeight(const int imageH) {
 	if (imageH != _imageH)
 		setPointerToNull(&d_gauss);
 	_imageH = imageH;
-	cudaMemcpyToSymbol(IMAGE_H, &imageH, sizeof(int));
-	cudaCheckErrors("ERROR");
 }
 
 void Retina::setImageWidth(const int imageW) {
 	if (imageW != _imageW)
 		setPointerToNull(&d_gauss);
 	_imageW = imageW;
-	cudaMemcpyToSymbol(IMAGE_W, &imageW, sizeof(int));
-	cudaCheckErrors("ERROR");
 }
 
 void Retina::setRGB(const bool rgb) {
@@ -292,16 +288,12 @@ void Retina::setCenterX(const int centerX) {
 	if (centerX != _centerX)
 		setPointerToNull(&d_gauss);
 	_centerX = centerX;
-	cudaMemcpyToSymbol(CENTER_X, &centerX, sizeof(int));
-	cudaCheckErrors("ERROR");
 }
 
 void Retina::setCenterY(const int centerY) {
 	if (centerY != _centerY)
 		setPointerToNull(&d_gauss);
 	_centerY = centerY;
-	cudaMemcpyToSymbol(CENTER_Y, &centerY, sizeof(int));
-	cudaCheckErrors("ERROR");
 }
 
 double* Retina::imageVectorOnDevice(size_t &vectorLength) {

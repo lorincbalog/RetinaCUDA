@@ -8,7 +8,7 @@
  */
 
 #if defined(_MSC_VER)
-    //  Microsoft
+    //  MSVC
     #define EXPORT __declspec(dllexport)
     #define IMPORT __declspec(dllimport)
 #elif defined(__GNUC__)
@@ -16,7 +16,7 @@
     #define EXPORT __attribute__((visibility("default")))
     #define IMPORT
 #else
-    //  do nothing and hope for the best?
+	// Why would you use something else?
     #define EXPORT
     #define IMPORT
     #pragma warning Unknown dynamic link import/export semantics.

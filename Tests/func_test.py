@@ -20,14 +20,10 @@ coeff = [0,0,0,0]
 loc = [0,0,0,0]
 
 coeff[0] = scipy.io.loadmat(mat_data+'/coefficients.mat')['M']
-print coeff[0].shape
-print type(coeff[0])
 coeff[1] = scipy.io.loadmat(mat_data+'/coeff4k.mat')['M4k']
 coeff[2] = scipy.io.loadmat(mat_data+'/coeff1k.mat')['M1k']
 coeff[3] = scipy.io.loadmat(retina_path+'/coeffv2_1.mat')['coeffv2']
 loc[0] = scipy.io.loadmat(mat_data+'/locations.mat')['ind']
-print loc[0].shape
-print type(loc[0])
 loc[1] = scipy.io.loadmat(mat_data+'/loc4k.mat')['ind4k']
 loc[2] = scipy.io.loadmat(mat_data+'/loc1k.mat')['ind1k']
 loc[3] = scipy.io.loadmat(retina_path+'/locv2_1.mat')['locv2']
@@ -111,7 +107,6 @@ def compatibility_test(loc, coeff, cap, rgb=False):
     L, R = cortex.LRsplit(loc)
     L_loc, R_loc = cortex.cort_map(L, R)
     L_loc, R_loc, G, cort_size = cortex.cort_prepare(L_loc, R_loc)
-
     # CUDA
     # first retina creates everything on the GPU, proved to be identical with Piotr's implementation
     ret0 = retina_cuda.create_retina(loc, coeff, img.shape, (img.shape[1]/2, img.shape[0]/2), None)

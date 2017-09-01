@@ -160,7 +160,7 @@ class Retina(object):
         Parameters
         ----------
         loc : np.ndarray
-            7 values each line, locations of the fields (from matlab)
+            shape [retina_size, 7], 7 values each line, locations of the fields (from matlab)
         coeff : np.ndarray
             kernels of the sampling
         '''
@@ -213,7 +213,7 @@ class Retina(object):
         -------
         image_vector : np.ndarray
             sampled flat image vector
-            if rgb, must be reshaped to become compatible with Piotr (convert_to_Piotr)
+            if rgb, must be reshaped to become compatible with Piotr (retina_cuda.convert_to_Piotr)
         '''
         image_vector = np.empty(self.retina_size * (3 if self.rgb else 1), dtype=ctypes.c_double)
 
@@ -238,7 +238,7 @@ class Retina(object):
         ----------
         image_vector : np.ndarray
             length must match retina size\n
-            if rgb and from Piotr, must be flattened (convert_from_Piotr)
+            if rgb and from Piotr, must be flattened (retina_cuda.convert_from_Piotr)
         Returns
         -------
         image : np.ndarray

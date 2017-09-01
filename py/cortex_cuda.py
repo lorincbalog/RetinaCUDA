@@ -91,49 +91,78 @@ class Cortex(object):
     
     @property
     def left_size(self):
+        '''int, size of the left cortex.'''
         return lib.Cortex_getLeftSize(self.obj)
 
     @property
     def right_size(self):
+        '''int, size of the right cortex.'''
         return lib.Cortex_getRightSize(self.obj)
         
     @property
     def cort_image_size(self):
+        '''
+        pair of int, [cort_img_height,cort_img_width], size of the cortical image.
+        Setting this property invalidates the cortical map.
+        '''
         return [lib.Cortex_getCortImageY(self.obj), lib.Cortex_getCortImageX(self.obj)]
     @cort_image_size.setter
     def cort_image_size(self, size):
+        '''
+        pair of int, [cort_img_height,cort_img_width], size of the cortical image.
+        Setting this property invalidates the cortical map.
+        '''
         lib.Cortex_setCortImageSize(self.obj, size[1], size[0])
     
     @property
     def rgb(self):
+        '''bool, whether the cortex can process rgb images (2D image vector)'''
         return lib.Cortex_getRGB(self.obj)
     @rgb.setter
     def rgb(self, value):
+        '''bool, whether the cortex can process rgb images (2D image vector)'''
         lib.Cortex_setRGB(self.obj, value)
     
     @property
     def alpha(self):
+        '''float, alpha used to generate the cortical map
+        Setting this property invalidates the cortial map (L_loc,R_loc).'''
         return lib.Cortex_getAlpha(self.obj)
     @alpha.setter
     def alpha(self, value):
+        '''float, alpha used to generate the cortical map
+        Setting this property invalidates the cortial map (L_loc,R_loc).'''
         lib.Cortex_setAlpha(self.obj, value)
 
     @property
     def shrink(self):
+        '''float, shrink used to generate the cortical map
+        Setting this property invalidates the cortial map (L_loc,R_loc).'''
         return lib.Cortex_getShrink(self.obj)
     @shrink.setter
     def shrink(self, value):
+        '''float, shrink used to generate the cortical map
+        Setting this property invalidates the cortial map (L_loc,R_loc).'''
         lib.Cortex_setShrink(self.obj, value)
 
     @property
     def gauss_kernel_width(self):
+        '''uint, width of the gaussian kernels in gauss100'''
         return lib.Cortex_getGaussKernelWidth(self.obj)
 
     @property
     def gauss_sigma(self):
+        '''float, sigma of the guassian used in gauss100'''
         return lib.Cortex_getGaussSigma(self.obj)
 
     def init_from_sampling_fields(self, fields):
+        '''
+        Sets the sampling fields of the cortex and creates the cortical map based on them\n
+        Parameters
+        ----------
+        fields : np.ndarray of float64
+            shape of [retina_size, 7], 7 values each row, locations of the fields (from matlab)
+        '''
         if fields is None:
             lib.Cortex_initFromRetinaFields(self.obj, None, 0)
             return
@@ -146,6 +175,14 @@ class Cortex(object):
         return True
 
     def set_left_sampling_fields(self, fields):
+        '''
+        Sets the left cortex's sampling fields
+        Mapping must be done separately\n
+        Parameters
+        ----------
+        fields : np.ndarray of float64
+            shape of [retina_size, 7], 7 values each row, locations of the fields (from matlab)
+        '''
         if fields.shape[0] == 0:
             return False
 
@@ -154,6 +191,14 @@ class Cortex(object):
         resolveError(err)
 
     def set_right_sampling_fields(self, fields):
+        '''
+        Sets the right cortex's sampling fields
+        Mapping must be done separately\n
+        Parameters
+        ----------
+        fields : np.ndarray of float64
+            shape of [retina_size, 7], 7 values each row, locations of the fields (from matlab)
+        '''
         if fields.shape[0] == 0:
             return False
 
@@ -163,6 +208,13 @@ class Cortex(object):
 
 
     def set_left_cortex_locations(self, loc):
+        '''
+        Sets the left cortex's cortical map (locations)\n
+        Parameters
+        ----------
+        loc : np.ndarray of float64
+            shape of [left_cortex_size, 2]
+        '''
         if loc.shape[0] == 0:
             return False
 
@@ -171,6 +223,13 @@ class Cortex(object):
         resolveError(err)
 
     def set_right_cortex_locations(self, loc):
+        '''
+        Sets the right cortex's cortical map (locations)\n
+        Parameters
+        ----------
+        loc : np.ndarray of float64
+            shape of [right_cortex_size, 2]
+        '''
         if loc.shape[0] == 0:
             return False
 
@@ -179,6 +238,24 @@ class Cortex(object):
         resolveError(err)
 
     def set_gauss100(self, kernel_width=7, sigma=0.8, gauss100=None):
+        '''
+        Sets the 10x10 matrix filled with gaussian kernels\n
+        Parameters
+        ----------
+        kernel_width : int
+            width of the gaussian kernels
+        sigma : float64
+            sigma of the gaussian kernels
+        gauss100 : np.ndarray of float64, optional
+            shape of [10,10,kernel_width,kernel_width]
+            if None, guass100 is generated on the GPU (requires both kernel_width and sigma)
+            if not None, gets copied to GPU and will be used. kernel_width must be set
+            NOTE: since sigma is only required to the generation, as long as the 
+            shape of the array is [10,10,kernel_width,kernel_width] and kernel_width
+            is provided, it should work fine. Passing the array with proper dimensions 
+            should produce good results, even when sigma is not set, or different for 
+            each gaussian in the array
+        '''
         if gauss100 is None:
              err = lib.Cortex_setGauss100(self.obj, kernel_width, sigma, None)
         else:
@@ -188,6 +265,19 @@ class Cortex(object):
             resolveError(err)
 
     def cort_image_left(self, image_vector):
+        '''
+        Generates the left cortical image from the image_vector\n
+        Parameters
+        ----------
+        image_vector : np.ndarray of float64
+            sampled flat image vector
+            if rgb and not from CUDA (i.e. from Piotr),
+            must be flattened(retina_cuda.convert_from_Piotr)
+        Returns
+        -------
+        cort_image_left : np.ndarray of uint8
+            shape of [cort_img_size[1], cort_img_size[0]]
+        '''
         image = np.empty(self.cort_image_size[0] * self.cort_image_size[1] * (3 if self.rgb else 1), dtype=ctypes.c_uint8)
 
         err = lib.Cortex_cortImageLeft(self.obj, \
@@ -207,6 +297,19 @@ class Cortex(object):
         return out
     
     def cort_image_right(self, image_vector):
+        '''
+        Generates the right cortical image from the image_vector\n
+        Parameters
+        ----------
+        image_vector : np.ndarray of float64
+            sampled flat image vector
+            if rgb and not from CUDA (i.e. from Piotr),
+            must be flattened(retina_cuda.convert_from_Piotr)
+        Returns
+        -------
+        cort_image_right : np.ndarray of uint8
+            shape of [cort_img_size[1], cort_img_size[0]]
+        '''
         image = np.empty(self.cort_image_size[0] * self.cort_image_size[1] * (3 if self.rgb else 1), dtype=ctypes.c_uint8)
 
         err = lib.Cortex_cortImageRight(self.obj, \
@@ -226,6 +329,36 @@ class Cortex(object):
         return out
 
 def create_cortex_from_fields(loc, alpha=15, shrink=0.5, k_width=7, sigma=0.8, gauss100=None, rgb=False):
+    '''
+    Instantiate a cortex and initialize it with the parameters
+    The cortical map is generated by the GPU code\n
+    Parameters 
+    ----------
+    loc : np.ndarray of float64
+        shape of [retina_size, 7]
+        loaded eg. from mat files
+    alpha : float64
+    shrink : float64
+        shrinking factor of the cortex
+    k_width : uint
+        width of the gaussian kernels in gauss100
+    sigma : float64
+        sigma of the gaussians
+    guass100 : np.ndarray of float64, optional
+            shape of [10,10,kernel_width,kernel_width]
+            if None, guass100 is generated on the GPU (requires both kernel_width and sigma)
+            if not None, gets copied to GPU and will be used. kernel_width must be set
+    rgb : bool, whether the cortex can process rgb images (2D image vector)
+    Returns
+    -------
+    new cortex_cuda instance\n
+    NOTE: there is a limitation of this function, namely if
+    the size of L or R will be greater than 8000,
+    only devices with cc6.0 can handle that
+    WORKAROUND: if this is the case (eg 50k ret)
+    calc L, R L_loc and R_loc with Piotr's code
+    and pass it to the cortex as in create_cortex_from_fields_and_locs
+    '''
     # Instantiate cortex
     cort = Cortex()
     # Set parameters. Alpha and shrink should be set before anything else
@@ -243,6 +376,34 @@ def create_cortex_from_fields(loc, alpha=15, shrink=0.5, k_width=7, sigma=0.8, g
     return cort
 
 def create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_img_size, k_width=7, sigma=0.8, gauss100=None, rgb=False):
+    '''
+    Instantiate a cortex and initialize it with the parameters
+    The cortical map is provided as parameters\n
+    Parameters 
+    ----------
+    L : np.ndarray of float64
+        shape of [left_cortex_size, 7]
+    R : np.ndarray of float64
+        shape of [right_cortex_size, 7]
+    L_loc : np.ndarray of float64
+        shape of [left_cortex_size]
+    R_loc : np.ndarray of float64
+        shape of [right_cortex_size]
+    cort_img_size : pair of uint
+        [cort_img_height,cort_img_width]
+    k_width : uint
+        width of the gaussian kernels in gauss100
+    sigma : float64
+        sigma of the gaussians
+    guass100 : np.ndarray of float64, optional
+            shape of [10,10,kernel_width,kernel_width]
+            if None, guass100 is generated on the GPU (requires both kernel_width and sigma)
+            if not None, gets copied to GPU and will be used. kernel_width must be set
+    rgb : bool, whether the cortex can process rgb images (2D image vector)
+    Returns
+    -------
+    new cortex_cuda instance
+    '''
     # Instantiate cortex
     cort = Cortex()
     cort.rgb = rgb
