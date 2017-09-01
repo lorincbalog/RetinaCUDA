@@ -14,6 +14,7 @@ import cortex_cuda
 import retina
 import cortex
 import perf_test
+import subprocess
 
 retina_path = '../Retinas'
 mat_data = '../Retinas'
@@ -35,12 +36,18 @@ with open(retina_path + '/ret50k_coeff.pkl', 'rb') as handle:
 
 img_sizes = [(480,320),(640,480),(800,600),(1080,720),(1280,1024),(1920,1080)]
 
-# measure initialisation time, performance and Python difference
-# for i in range(0,5):
-#     for size in img_sizes[1:]:
-#         perf_test.speedup_cam(loc[i],coeff[i],size, 20, True, False)
+if __name__ == '__main__':
+    args = sys.argv
+    print args
 
-# measure raw performance in ideal envrionment (e.g. one initalisation, use object on a lot of data)
-for i in range(0,5):
-    for size in img_sizes:
-        perf_test.ideal_usage_cam(loc[i],coeff[i],size, 20, True, False)
+    func = args[1]
+    ind = int(args[2])
+    size_ind = int(args[3])
+    stop = int(args[4])
+    show_res = (args[5] == 'True')
+    print show_res
+    color = (args[6] == 'True')
+    if func == 'speedup':
+        perf_test.speedup_cam(loc[ind],coeff[ind], img_sizes[size_ind], stop, show_res, color)
+    else:
+        perf_test.ideal_usage_cam(loc[ind],coeff[ind], img_sizes[size_ind], stop, show_res, color)

@@ -12,6 +12,7 @@ This project is based on Piotr Ozimek's work at the School of Computing Science 
 <b>Tests</b> contains two tests used to validate the results and measure the performance of the GPU implementation<br />
 
 # Dependencies
+The library was compiled only to 64-bit systems. To use it, an Nvidia CUDA capable GPU must be installed in the machine. 
 Although the binaries should not depend on any libraries which have not been included,
 to use the Python wrappers and especially to run the tests the following software dependencies apply:<br />
 <b>python 2.7 64-bit<br />
@@ -19,8 +20,10 @@ opencv-python (2.4.13+) -> must be opencv version 2<br />
 numpy (1.11.1+)<br />
 scipy (0.18.1+)<br /></b>
 NOTE: Tests are using camera stream as input<br />
-The easiest way to get rid of the dependency issues is to install the 64-bit anaconda2. On Linux, after the
-installation, the libstdc++.so files from bin/Linux must be copied to anaconda's library directory (it was 
+The easiest way to get rid of the dependency issues is to install the 64-bit Anaconda2.<br />
+Once Anaconda is installed, run<br />
+conda install -c menpo opencv<br />
+On Linux, after the installation, the libstdc++.so files from bin/Linux must be copied to CONDA_PATH/anaconda2/lib/ directory (it was 
 shipped with an older version). On Windows, it should just work as it is once anaconda is installed.
 
 # Tests
