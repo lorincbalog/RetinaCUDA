@@ -32,6 +32,37 @@ with open(retina_path + '/ret50k_loc.pkl', 'rb') as handle:
 with open(retina_path + '/ret50k_coeff.pkl', 'rb') as handle:
     coeff50k = pickle.load(handle)
 
+img_sizes = [(480,320),(640,480),(800,600),(1080,720),(1280,1024),(1920,1080)]
+
+L, R = cortex.LRsplit(loc50k)
+L_loc, R_loc = cortex.cort_map(L, R)
+L_loc, R_loc, G, cort_size = cortex.cort_prepare(L_loc, R_loc)
+
+retinas = np.empty((2,5,6), dtype=object)
+cortexes = np.empty((2,5), dtype=object)
+
+for i in range(0,4):
+    for ind, img in enumerate(img_sizes):
+        retinas[0,i,ind] = retina_cuda.create_retina(loc[i], coeff[i], (img[1],img[0],3), (int(img[0]/2), int(img[1]/2)))
+        retinas[1,i,ind] = retina_cuda.create_retina(loc[i], coeff[i], (img[1], img[0]), (int(img[0]/2), int(img[1]/2)))
+    cortexes[0,i] = cortex_cuda.create_cortex_from_fields(loc[i], rgb=True)
+    cortexes[1,i] = cortex_cuda.create_cortex_from_fields(loc[i], rgb=False)
+
+for ind,img in enumerate(img_sizes):
+    retinas[0,4,ind] = retina_cuda.create_retina(loc50k, coeff50k, (img[1],img[0],3), (int(img[0]/2), int(img[1]/2)))
+    retinas[1,4,ind] = retina_cuda.create_retina(loc50k, coeff50k, (img[1], img[0]), (int(img[0]/2), int(img[1]/2)))
+cortexes[0][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_size, gauss100=G, rgb=True)
+cortexes[1][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_size, gauss100=G, rgb=False)
+
+#### TRACKBAR
+def nothing(x):
+    pass
+cv2.namedWindow('Settings', cv2.WINDOW_NORMAL)
+cv2.createTrackbar('Retina','Settings',0,4,nothing)
+cv2.createTrackbar('Image size', 'Settings',0,5,nothing)
+cv2.createTrackbar('Color mode','Settings',0,1,nothing)
+###
+
 camid = -1
 cap = cv2.VideoCapture(camid)
 
@@ -41,47 +72,21 @@ while not cap.isOpened():
     cap = cv2.VideoCapture(camid)
     camid += 1
 
-retinas = np.empty((2,5), dtype=object)
-cortexes = np.empty((2,5), dtype=object)
-
 r, img = cap.read()
 while not r: r, img = cap.read()
-
-img = cv2.resize(img, (1920,1080))
-L, R = cortex.LRsplit(loc50k)
-L_loc, R_loc = cortex.cort_map(L, R)
-L_loc, R_loc, G, cort_size = cortex.cort_prepare(L_loc, R_loc)
-
-for i in range(0,4):
-    retinas[0,i] = retina_cuda.create_retina(loc[i], coeff[i], img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)))
-    retinas[1,i] = retina_cuda.create_retina(loc[i], coeff[i], (img.shape[0], img.shape[1]), (int(img.shape[1]/2), int(img.shape[0]/2)))
-    cortexes[0,i] = cortex_cuda.create_cortex_from_fields(loc[i], rgb=True)
-    cortexes[1,i] = cortex_cuda.create_cortex_from_fields(loc[i], rgb=False)
-
-retinas[0][4] = retina_cuda.create_retina(loc50k, coeff50k, img.shape, (int(img.shape[1]/2), int(img.shape[0]/2)))
-retinas[1][4] = retina_cuda.create_retina(loc50k, coeff50k, (img.shape[0], img.shape[1]), (int(img.shape[1]/2), int(img.shape[0]/2)))
-cortexes[0][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_size, gauss100=G, rgb=True)
-cortexes[1][4] = cortex_cuda.create_cortex_from_fields_and_locs(L, R, L_loc, R_loc, cort_size, gauss100=G, rgb=False)
-
-#### TRACKBAR
-def nothing(x):
-    pass
-cv2.namedWindow('Settings', cv2.WINDOW_NORMAL)
-cv2.createTrackbar('Retina','Settings',0,4,nothing)
-cv2.createTrackbar('Color mode','Settings',0,1,nothing)
-###
-
 print 'Press q to quit'
 while True:
     i = cv2.getTrackbarPos('Retina', 'Settings')
+    img_ind = cv2.getTrackbarPos('Image size', 'Settings')
     rgb = False if cv2.getTrackbarPos('Color mode', 'Settings') == 0 else True
+
     r, img = cap.read()
-    img = cv2.resize(img, (1920,1080))
+    img = cv2.resize(img, img_sizes[img_ind])
     if not rgb: img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
     if r:
 	start = time.time()
-        V_c = retinas[0 if rgb else 1][i%5].sample(img) # sample with CUDA
-        inv_c = retinas[0 if rgb else 1][i%5].inverse(V_c) # inverse with CUDA
+        V_c = retinas[0 if rgb else 1][i%5][img_ind].sample(img) # sample with CUDA
+        inv_c = retinas[0 if rgb else 1][i%5][img_ind].inverse(V_c) # inverse with CUDA
     
         l_c = cortexes[0 if rgb else 1][i%5].cort_image_left(V_c) # left cortical image CUDA
         r_c = cortexes[0 if rgb else 1][i%5].cort_image_right(V_c) # right cortical image CUDA

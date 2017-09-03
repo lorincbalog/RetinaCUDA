@@ -79,3 +79,4 @@ if __name__ == '__main__':
             cv2.imshow("inverse CUDA", inv_c)
             cv2.namedWindow("cortex CUDA", cv2.WINDOW_NORMAL)
             cv2.imshow("cortex CUDA", c_c)
+            cv2.waitKey(10)
